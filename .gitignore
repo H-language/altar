@@ -7,3 +7,6 @@ compile_*
 altar
 altar_debug
 altar_uncompressed
+libraries
+projects
+tools

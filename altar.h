@@ -25,7 +25,7 @@
 #pragma region - MACROS
 //
 
-#define system_tool_exists( NAME ) ( TUI_command( OS_PICK( "command -v " #NAME, "where " #NAME ) ) is 0 )
+#define system_tool_exists( NAME ) ( command_silent( OS_PICK( "command -v " #NAME, "where " #NAME ) ) is 0 )
 
 #pragma endregion macros
 
