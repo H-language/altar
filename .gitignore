@@ -1,0 +1,9 @@
+compile_*
+.vscode
+*.def
+*.exe
+*.rc
+*.ico
+altar
+altar_debug
+altar_uncompressed
