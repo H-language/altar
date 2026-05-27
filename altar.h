@@ -1656,7 +1656,7 @@ fn altar_project_setup()
 				}
 			#endif
 			bytes_paste_move( script_bytes_ref, link_flags );
-			bytes_paste_move( script_bytes_ref, "-w -Wno-packed-bitfield-compat -Ofast -march=x86-64-v3 -flto -fno-plt -fipa-pta -s -D_GNU_SOURCE -o \"" );
+			bytes_paste_move( script_bytes_ref, "-w -Wno-packed-bitfield-compat -Ofast -march=x86-64-v3 -flto=auto -fno-plt -s -D_GNU_SOURCE -o \"" );
 			bytes_paste_move( script_bytes_ref, name );
 			bytes_paste_move( script_bytes_ref, "_uncompressed" PICK( OS_WINDOWS, ".exe" ) "\"" newline );
 			#if OS_WINDOWS
