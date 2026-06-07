@@ -41,7 +41,7 @@
 #define ALTAR_VERSION_MAJOR 0
 #define ALTAR_VERSION_MINOR 1
 #define ALTAR_VERSION_PATCH 0
-#define ALTAR_VERSION_COMMIT 0
+#define ALTAR_VERSION_COMMIT 3
 #define ALTAR_VERSION AS_BYTES( ALTAR_VERSION_MAJOR ) "." AS_BYTES( ALTAR_VERSION_MINOR ) "." AS_BYTES( ALTAR_VERSION_PATCH )
 
 #pragma endregion
@@ -72,6 +72,7 @@
 #define tool_upx_bytes "upx"
 #define tool_vscode_bytes "vscode"
 #define tool_formatter_bytes "formatter"
+#define tool_pep_tool_bytes "pep_tool"
 
 #pragma endregion names
 
@@ -113,6 +114,7 @@ group( altar_tool_type )
 	altar_tool_upx,
 	altar_tool_vscode,
 	altar_tool_formatter,
+	altar_tool_pep_tool,
 
 	altar_tools_count
 };
@@ -239,8 +241,6 @@ fn altar_file_parse( byte const ref const file_bytes )
 				++file_bytes_ref;
 				jump process_entry_start;
 			}
-
-			other skip;
 		}
 	}
 
@@ -282,8 +282,9 @@ fn altar_file_parse( byte const ref const file_bytes )
 								{
 									++file_bytes_ref;
 								}
-							} // fall through
-							when( newline_byte )
+							}
+
+							then_when( newline_byte )
 							{
 								altar_file_current_entry.name[ entry_name_size ] = eof_byte;
 								entry_name_size = 0;
@@ -312,7 +313,6 @@ fn altar_file_parse( byte const ref const file_bytes )
 						when( tab_byte )
 						{
 							++file_bytes_ref;
-							skip;
 						}
 
 						when( '`' )
@@ -368,9 +368,9 @@ fn altar_file_parse( byte const ref const file_bytes )
 								{
 									++file_bytes_ref;
 								}
-							} // fall through
+							}
 
-							when( eof_byte, newline_byte )
+							then_when( eof_byte, newline_byte )
 							{
 								jump_if( entry_element_size is 0 ) process_entry;
 								//
@@ -431,6 +431,7 @@ perm altar_tool altar_tools[ altar_tools_count ] =
 		_altar_tool_set( upx, yes, "upx/upx", "/releases/download/v", "/upx-", OS_PICK( "-amd64_linux.tar.xz", "-win64.zip" ) ),
 		_altar_tool_set( vscode, yes, "VSCodium/vscodium", "/releases/download/", OS_PICK( "/VSCodium-linux-x64-", "/VSCodium-win32-x64-" ), OS_PICK( ".tar.gz", ".zip" ) ),
 		_altar_tool_set( formatter, yes, "H-language/formatter", "/releases/download/", "/" tool_formatter_bytes, OS_PICK( "", ".exe" ) ),
+		_altar_tool_set( pep_tool, yes, "ENDESGA/pep_tool", "/releases/download/", "/" tool_pep_tool_bytes, OS_PICK( "", ".exe" ) ),
 	};
 
 #pragma endregion visible
@@ -507,7 +508,7 @@ fn _altar_set_state( altar_state const state, i1 const top_id, i1 const sub_id )
 
 #define altar_set_state( STATE, TOP_ID, SUB_ID... ) out_if( altar.state is altar_state_##STATE ); _altar_set_state( altar_state_##STATE, TOP_ID, DEFAULT( -1, SUB_ID ) )
 
-#define altar_sleep_reset() sleep( 1000 ); altar_set_state( start, -1 )
+#define altar_sleep_reset() sleep( 500 ); altar_set_state( start, -1 )
 #define altar_sleep_back( STATE, TOP_ID ) altar_sleep_reset(); altar_set_state( STATE, TOP_ID )
 
 #define altar_update_list( NAME ) altar.NAME##_count = os_get_folders( AS_BYTES( NAME ), altar.NAME, altar_max_##NAME, no );
@@ -623,7 +624,7 @@ fn altar_set_state_tools()
 				altar_tools[ tool ].needs_update = os_folder_exists( tools_bytes separator "tinycc" ) and( bytes_compare( shas[ 0 ], shas[ 1 ], 12 ) isnt 0 );
 				next;
 			}
-			//
+
 			byte command[ KB( 1 ) ];
 			byte ref command_ref = command;
 			bytes_paste_move( command_ref, "curl -L -s https://api.github.com/repos/" );
@@ -645,19 +646,17 @@ fn altar_set_state_tools()
 							++line_output_ref;
 							jump process_output_byte;
 						}
-						//
+
 						when( '\r' )
 						{
 							if( val_of( line_output_ref + 1 ) is newline_byte )
 							{
 								++line_output_ref;
 							}
-						} // fall through
-						when( newline_byte, eof_byte )
-						{
-							next;
 						}
-						//
+
+						then_when( newline_byte, eof_byte ) next;
+
 						when( 't' )
 						{
 							if( bytes_match( line_output_ref, "tag_name", 8 ) )
@@ -696,13 +695,7 @@ fn altar_set_state_tools()
 									}
 								}
 							}
-							else
-							{
-								next;
-							}
 						}
-						//
-						other next;
 					}
 				}
 			}
@@ -719,28 +712,23 @@ fn altar_set_state_tools()
 					{
 						is_installed = os_file_exists( path( tools_bytes, "tinygw", "bin", "gcc.exe" ) );
 						bytes_paste_move( version_command_ref, path( tools_bytes, "tinygw", "bin", tool_gcc_bytes ) " --version" );
-						skip;
 					}
 				#endif
 				when( 'u' )
 				{
 					is_installed = os_file_exists( path( tools_bytes, tool_upx_bytes, PICK( OS_WINDOWS, "upx.exe", tool_upx_bytes ) ) );
 					bytes_paste_move( version_command_ref, path( tools_bytes, tool_upx_bytes, tool_upx_bytes ) " --version" );
-					skip;
 				}
 				when( 'v' )
 				{
 					is_installed = os_file_exists( path( tools_bytes, tool_vscode_bytes, "bin", OS_PICK( "codium", "codium.cmd" ) ) );
 					bytes_paste_move( version_command_ref, path( tools_bytes, tool_vscode_bytes, "bin", OS_PICK( "codium", "codium.cmd" ) ) " --version" );
-					skip;
 				}
 				when( 'f' )
 				{
 					is_installed = os_file_exists( path( tools_bytes, tool_formatter_bytes, tool_formatter_bytes ) OS_PICK( "", ".exe" ) );
 					bytes_paste_move( version_command_ref, path( tools_bytes, tool_formatter_bytes, tool_formatter_bytes ) OS_PICK( "", ".exe" ) " --version" );
-					skip;
 				}
-				other skip;
 			}
 
 			if( not is_installed )
@@ -780,7 +768,7 @@ fn altar_set_state_tools()
 
 		TUI_print( " <w>done!" );
 		TUI_update_now();
-		sleep( 250 );
+		sleep( 100 );
 
 		altar.get_tool_versions = yes;
 	}
@@ -1027,6 +1015,21 @@ fn altar_project_new_framework()
 	TUI_print( altar.new_project_name );
 	TUI_print( " <m>project made!" );
 	TUI_update_now();
+
+	sleep( 100 );
+
+	byte const ref new_setup_inputs[] =
+		{
+			projects_bytes,
+			altar_projects_data[ 1 ].name,
+			altar.new_project_name,
+			projects_bytes,
+			altar_projects_data[ 2 ].name,
+			altar.new_project_name,
+		};
+
+	TUI_click_buttons( new_setup_inputs, size_of_array( new_setup_inputs ) );
+
 	altar_sleep_reset();
 }
 
@@ -1691,52 +1694,56 @@ fn altar_project_setup()
 		{
 			bytes_paste_move( new_path_ref, ".vscode" );
 			bytes_end( new_path_ref );
-			os_create_folder( new_path );
 
-			bytes_separator_move( new_path_ref );
-			byte ref const vscode_base_ref = new_path_ref;
-			//
+			if( not os_folder_exists( new_path ) )
 			{
-				byte settings_json_bytes[ KB( 1 ) ];
-				byte ref settings_json_bytes_ref = settings_json_bytes;
-				bytes_paste_move( settings_json_bytes_ref, "{" newline tab "\"name\": \"" );
-				bytes_paste_move( settings_json_bytes_ref, name );
-				bytes_paste_move( settings_json_bytes_ref, "\"" newline "}" newline );
-				bytes_end( settings_json_bytes_ref );
+				os_create_folder( new_path );
+
+				bytes_separator_move( new_path_ref );
+				byte ref const vscode_base_ref = new_path_ref;
 				//
-				bytes_paste_move( new_path_ref, "settings.json" );
-				bytes_end( new_path_ref );
-				os_file settings_json = os_create_file( new_path, new_path_ref - new_path );
-				os_file_ref_save( ref_of( settings_json ), settings_json_bytes, settings_json_bytes_ref - settings_json_bytes );
-				os_file_ref_close( ref_of( settings_json ) );
-				new_path_ref = vscode_base_ref;
+				{
+					byte settings_json_bytes[ KB( 1 ) ];
+					byte ref settings_json_bytes_ref = settings_json_bytes;
+					bytes_paste_move( settings_json_bytes_ref, "{" newline tab "\"name\": \"" );
+					bytes_paste_move( settings_json_bytes_ref, name );
+					bytes_paste_move( settings_json_bytes_ref, "\"" newline "}" newline );
+					bytes_end( settings_json_bytes_ref );
+					//
+					bytes_paste_move( new_path_ref, "settings.json" );
+					bytes_end( new_path_ref );
+					os_file settings_json = os_create_file( new_path, new_path_ref - new_path );
+					os_file_ref_save( ref_of( settings_json ), settings_json_bytes, settings_json_bytes_ref - settings_json_bytes );
+					os_file_ref_close( ref_of( settings_json ) );
+					new_path_ref = vscode_base_ref;
+				}
+				//
+				{
+					byte launch_json_bytes[ KB( 1 ) ];
+					byte ref launch_json_bytes_ref = launch_json_bytes;
+					bytes_paste_move( launch_json_bytes_ref, "{" newline tab "\"version\": \"0.2.0\"," newline tab "\"configurations\":" newline tab "[" newline );
+					//
+					bytes_paste_move( launch_json_bytes_ref, tab tab "{" newline );
+					bytes_paste_move( launch_json_bytes_ref, tab tab tab "\"name\": \"debug\"," newline );
+					bytes_paste_move( launch_json_bytes_ref, tab tab tab "\"preLaunchTask\": \"compile debug\"," newline );
+					bytes_paste_move( launch_json_bytes_ref, tab tab tab "\"request\": \"launch\"," newline );
+					bytes_paste_move( launch_json_bytes_ref, tab tab tab "\"type\": \"gdb\"," newline );
+					bytes_paste_move( launch_json_bytes_ref, tab tab tab "\"program\": \"${workspaceFolder}/${config:name}_debug\"," newline );
+					bytes_paste_move( launch_json_bytes_ref, tab tab tab "//\"args\": [\"\"]," newline );
+					bytes_paste_move( launch_json_bytes_ref, tab tab tab "\"cwd\": \"${workspaceFolder}\"," newline );
+					bytes_paste_move( launch_json_bytes_ref, tab tab "}" newline tab "]" newline "}" newline );
+					//
+					bytes_end( launch_json_bytes_ref );
+					//
+					bytes_paste_move( new_path_ref, "launch.json" );
+					bytes_end( new_path_ref );
+					os_file launch_json = os_create_file( new_path, new_path_ref - new_path );
+					os_file_ref_save( ref_of( launch_json ), launch_json_bytes, launch_json_bytes_ref - launch_json_bytes );
+					os_file_ref_close( ref_of( launch_json ) );
+					new_path_ref = vscode_base_ref;
+				}
 			}
-			//
-			{
-				byte launch_json_bytes[ KB( 1 ) ];
-				byte ref launch_json_bytes_ref = launch_json_bytes;
-				bytes_paste_move( launch_json_bytes_ref, "{" newline tab "\"version\": \"0.2.0\"," newline tab "\"configurations\":" newline tab "[" newline );
-				//
-				bytes_paste_move( launch_json_bytes_ref, tab tab "{" newline );
-				bytes_paste_move( launch_json_bytes_ref, tab tab tab "\"name\": \"debug\"," newline );
-				bytes_paste_move( launch_json_bytes_ref, tab tab tab "\"preLaunchTask\": \"compile debug\"," newline );
-				bytes_paste_move( launch_json_bytes_ref, tab tab tab "\"request\": \"launch\"," newline );
-				bytes_paste_move( launch_json_bytes_ref, tab tab tab "\"type\": \"gdb\"," newline );
-				bytes_paste_move( launch_json_bytes_ref, tab tab tab "\"program\": \"${workspaceFolder}/${config:name}_debug\"," newline );
-				bytes_paste_move( launch_json_bytes_ref, tab tab tab "//\"args\": [\"\"]," newline );
-				bytes_paste_move( launch_json_bytes_ref, tab tab tab "\"cwd\": \"${workspaceFolder}\"," newline );
-				bytes_paste_move( launch_json_bytes_ref, tab tab "}" newline tab "]" newline "}" newline );
-				//
-				bytes_end( launch_json_bytes_ref );
-				//
-				bytes_paste_move( new_path_ref, "launch.json" );
-				bytes_end( new_path_ref );
-				os_file launch_json = os_create_file( new_path, new_path_ref - new_path );
-				os_file_ref_save( ref_of( launch_json ), launch_json_bytes, launch_json_bytes_ref - launch_json_bytes );
-				os_file_ref_close( ref_of( launch_json ) );
-				new_path_ref = vscode_base_ref;
-			}
-			//
+
 			new_path_ref = base_path_ref;
 		}
 
@@ -2280,49 +2287,6 @@ fn altar_tool_install()
 
 		//
 
-		when( 'f' ) // formatter
-		{
-			os_delete_folder( tools_bytes separator tool_formatter_bytes );
-			os_create_folder( tools_bytes separator tool_formatter_bytes );
-
-			byte formatter_command[ KB( 1 ) ];
-			byte ref formatter_command_ref = formatter_command;
-
-			TUI_newline();
-			TUI_print( "<c>installing <y>formatter<m>..." );
-			TUI_update_now();
-
-			TUI_newline();
-			TUI_print( "downloading formatter..." );
-			TUI_update_now();
-
-			bytes_paste_move( formatter_command_ref, altar.curl_path );
-			bytes_paste_move( formatter_command_ref, " -L -o " path( tools_bytes, tool_formatter_bytes, tool_formatter_bytes ) OS_PICK( "", ".exe" ) " https://github.com/" );
-			bytes_paste_move( formatter_command_ref, altar_tools[ altar_tool_formatter ].repo );
-			bytes_paste_move( formatter_command_ref, altar_tools[ altar_tool_formatter ].url_prefix );
-			bytes_paste_move( formatter_command_ref, altar_tools[ altar_tool_formatter ].version );
-			bytes_paste_move( formatter_command_ref, altar_tools[ altar_tool_formatter ].url_mid );
-			bytes_paste_move( formatter_command_ref, altar_tools[ altar_tool_formatter ].url_suffix );
-			bytes_end( formatter_command_ref );
-			TUI_command( formatter_command );
-
-			#if OS_LINUX
-				formatter_command_ref = formatter_command;
-				bytes_paste_move( formatter_command_ref, "chmod +x " path( tools_bytes, tool_formatter_bytes, tool_formatter_bytes ) );
-				bytes_end( formatter_command_ref );
-				TUI_command( formatter_command );
-			#endif
-
-			TUI_newline();
-			TUI_print( "<c>install: <y>formatter <m>successfully installed!" );
-			TUI_update_now();
-			altar_tools[ altar_tool_formatter ].needs_update = no;
-			altar_sleep_reset();
-			out;
-		}
-
-		//
-
 		when( 'u' ) // upx
 		{
 			os_delete_folder( tools_bytes separator tool_upx_bytes );
@@ -2778,7 +2742,89 @@ fn altar_tool_install()
 
 		//
 
-		other skip;
+		when( 'f' ) // formatter
+		{
+			os_delete_folder( tools_bytes separator tool_formatter_bytes );
+			os_create_folder( tools_bytes separator tool_formatter_bytes );
+
+			byte formatter_command[ KB( 1 ) ];
+			byte ref formatter_command_ref = formatter_command;
+
+			TUI_newline();
+			TUI_print( "<c>installing <y>formatter<m>..." );
+			TUI_update_now();
+
+			TUI_newline();
+			TUI_print( "downloading formatter..." );
+			TUI_update_now();
+
+			bytes_paste_move( formatter_command_ref, altar.curl_path );
+			bytes_paste_move( formatter_command_ref, " -L -o " path( tools_bytes, tool_formatter_bytes, tool_formatter_bytes ) OS_PICK( "", ".exe" ) " https://github.com/" );
+			bytes_paste_move( formatter_command_ref, altar_tools[ altar_tool_formatter ].repo );
+			bytes_paste_move( formatter_command_ref, altar_tools[ altar_tool_formatter ].url_prefix );
+			bytes_paste_move( formatter_command_ref, altar_tools[ altar_tool_formatter ].version );
+			bytes_paste_move( formatter_command_ref, altar_tools[ altar_tool_formatter ].url_mid );
+			bytes_paste_move( formatter_command_ref, altar_tools[ altar_tool_formatter ].url_suffix );
+			bytes_end( formatter_command_ref );
+			TUI_command( formatter_command );
+
+			#if OS_LINUX
+				formatter_command_ref = formatter_command;
+				bytes_paste_move( formatter_command_ref, "chmod +x " path( tools_bytes, tool_formatter_bytes, tool_formatter_bytes ) );
+				bytes_end( formatter_command_ref );
+				TUI_command( formatter_command );
+			#endif
+
+			TUI_newline();
+			TUI_print( "<c>install: <y>formatter <m>successfully installed!" );
+			TUI_update_now();
+			altar_tools[ altar_tool_formatter ].needs_update = no;
+			altar_sleep_reset();
+			out;
+		}
+
+		//
+
+		when( 'p' ) // pep_tool
+		{
+			os_delete_folder( tools_bytes separator tool_pep_tool_bytes );
+			os_create_folder( tools_bytes separator tool_pep_tool_bytes );
+
+			byte pep_tool_command[ KB( 1 ) ];
+			byte ref pep_tool_command_ref = pep_tool_command;
+
+			TUI_newline();
+			TUI_print( "<c>installing <y>pep_tool<m>..." );
+			TUI_update_now();
+
+			TUI_newline();
+			TUI_print( "downloading pep_tool..." );
+			TUI_update_now();
+
+			bytes_paste_move( pep_tool_command_ref, altar.curl_path );
+			bytes_paste_move( pep_tool_command_ref, " -L -o " path( tools_bytes, tool_pep_tool_bytes, tool_pep_tool_bytes ) OS_PICK( "", ".exe" ) " https://github.com/" );
+			bytes_paste_move( pep_tool_command_ref, altar_tools[ altar_tool_pep_tool ].repo );
+			bytes_paste_move( pep_tool_command_ref, altar_tools[ altar_tool_pep_tool ].url_prefix );
+			bytes_paste_move( pep_tool_command_ref, altar_tools[ altar_tool_pep_tool ].version );
+			bytes_paste_move( pep_tool_command_ref, altar_tools[ altar_tool_pep_tool ].url_mid );
+			bytes_paste_move( pep_tool_command_ref, altar_tools[ altar_tool_pep_tool ].url_suffix );
+			bytes_end( pep_tool_command_ref );
+			TUI_command( pep_tool_command );
+
+			#if OS_LINUX
+				pep_tool_command_ref = pep_tool_command;
+				bytes_paste_move( pep_tool_command_ref, "chmod +x " path( tools_bytes, tool_pep_tool_bytes, tool_pep_tool_bytes ) );
+				bytes_end( pep_tool_command_ref );
+				TUI_command( pep_tool_command );
+			#endif
+
+			TUI_newline();
+			TUI_print( "<c>install: <y>pep_tool <m>successfully installed!" );
+			TUI_update_now();
+			altar_tools[ altar_tool_pep_tool ].needs_update = no;
+			altar_sleep_reset();
+			out;
+		}
 	}
 }
 
@@ -2937,8 +2983,8 @@ fn altar_print()
 			TUI_print( "'<m>USERNAME<w>/<m>REPO<c>':" );
 			TUI_print_button( nothing, altar_library_clone, TUI.input_bytes );
 			TUI_newline();
-			skip;
 		}
+
 		when( altar_state_libraries_pull )
 		{
 			TUI_print( "<w>" );
@@ -2949,7 +2995,6 @@ fn altar_print()
 			altar_print_data( altar_library_pull, altar.libraries, altar.libraries_count );
 
 			TUI_newline();
-			skip;
 		}
 
 		when( altar_state_projects_new )
@@ -2957,18 +3002,16 @@ fn altar_print()
 			TUI_print( "name:" );
 			TUI_print_button( nothing, altar_project_new, TUI.input_bytes );
 			TUI_newline();
-			skip;
 		}
 		when( altar_state_projects_setup )
 		{
 			fn_project = altar_project_setup;
 		}
-		when( altar_state_projects_open )
+		then_when( altar_state_projects_open )
 		{
 			altar_print_data( fn_project, altar.projects, altar.projects_count );
 
 			TUI_newline();
-			skip;
 		}
 
 		when( altar_state_tools )
@@ -3013,8 +3056,6 @@ fn altar_print()
 			#undef _altar_print_tool_group
 
 			TUI_print( "<y>" );
-
-			skip;
 		}
 	}
 
